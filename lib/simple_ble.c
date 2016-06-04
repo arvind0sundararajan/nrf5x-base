@@ -30,6 +30,8 @@
 #include "bootloader_types.h"
 #include "bootloader_util.h"
 #include "bootloader.h"
+#include "nrf_drv_rng.h"
+#include "app_fifo.h"
 #endif
 
 // Simple BLE files
@@ -43,6 +45,14 @@
 #define BOOTLOADER_BLE_ADDR_START 0x20007F80
 #define DFU_ADV_DATA_TYPE         0x16
 #define DFU_ADV_DATA_VERS         0x01
+#define DFU_SESSION_ID_SIZE       4
+
+typedef enum {
+  DFU_WAIT,
+  DFU_AUTH,
+  DFU_PEND
+} dfu_state_t;
+
 #endif
 
 /*******************************************************************************
@@ -74,7 +84,8 @@ static simple_ble_service_t dfu_service = {
 
 static simple_ble_char_t    dfu_ctrlpt_char = {.uuid16 = BLE_DFU_CTRL_PT_UUID};
 
-static bool pending_dfu = 0;
+static dfu_state_t dfu_state = DFU_WAIT;
+static uint8_t session_id[DFU_SESSION_ID_SIZE];
 #endif
 
 /*******************************************************************************
@@ -197,8 +208,8 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
             advertising_stop();
 #ifdef ENABLE_DFU
             // if pending dfu, clear and disable irq and then reset to bootloader
-            if (pending_dfu) {
-                pending_dfu = 0;
+            if (dfu_state == DFU_PEND) {
+                dfu_state = DFU_WAIT;
                 dfu_reset();
             }
 #endif
@@ -216,11 +227,35 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
 #ifdef ENABLE_DFU
             // if written to dfu ctrl pt
             if (simple_ble_is_char_event(p_ble_evt, &dfu_ctrlpt_char)) {
-                pending_dfu = 1;
-                // disconnect, wait for event. 
-                err_code = sd_ble_gap_disconnect(app.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
-                APP_ERROR_CHECK(err_code);
-                break;
+                switch (dfu_state) {
+                    case DFU_WAIT:
+                        if (1) { // if not in backoff
+                            uint8_t* data = p_ble_evt->evt.gatts_evt.params.write.data;
+                            int len = p_ble_evt->evt.gatts_evt.params.write.len;
+                            if (len == 2 && *data == 0x01) {
+                                //TODO ifdef
+                                nrf_drv_rng_block_rand(session_id, DFU_SESSION_ID_SIZE);
+                                simple_ble_notify_char (&dfu_ctrlpt_char);
+                                dfu_state = DFU_AUTH;
+                            }
+                        }
+                        break;
+                    case DFU_AUTH:
+                        if (0) { //hmac validates
+                            // disconnect, wait for event. 
+                            err_code = sd_ble_gap_disconnect(app.conn_handle, 
+                                BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
+                            APP_ERROR_CHECK(err_code);
+                            dfu_state = DFU_PEND;
+                        } else if (1) { //backoff
+                          dfu_state = DFU_WAIT;
+                        }
+                        break;
+                    default:
+                        // give up and restart process
+                        dfu_state = DFU_WAIT;
+                        break;
+                }
             }
 #endif            
             // callback for user. Weak reference, so check validity first
@@ -358,7 +393,7 @@ void __attribute__((weak)) ble_address_set () {
  
 #ifdef ENABLE_DFU
     // write ble address to memory to share with bootloader
-    memcpy((uint8_t*)BOOTLOADER_BLE_ADDR_START, gap_addr.addr, 6);
+    memcpy((uint8_t*) BOOTLOADER_BLE_ADDR_START, gap_addr.addr, 6);
 #endif
     gap_addr.addr_type = BLE_GAP_ADDR_TYPE_PUBLIC;
     err_code = sd_ble_gap_address_set(BLE_GAP_ADDR_CYCLE_MODE_NONE, &gap_addr);
@@ -487,12 +522,18 @@ void __attribute__((weak)) services_init (void) {
 
 #ifdef ENABLE_DFU
 void __attribute__((weak)) dfu_init (void) {
+    int err_code = 0;
 
     simple_ble_add_service(&dfu_service);
     // Add ctrl pt characteristic
-    simple_ble_add_characteristic(0,1,1,1,
-        BLE_L2CAP_MTU_DEF, NULL,
-        &dfu_service,&dfu_ctrlpt_char); 
+    simple_ble_add_characteristic(0,1,1,0,
+        DFU_SESSION_ID_SIZE, session_id,
+        &dfu_service,&dfu_ctrlpt_char);
+    
+    // TODO ifdef
+    err_code = nrf_drv_rng_init(NULL);
+    APP_ERROR_CHECK(err_code);
+
 }
 
 void __attribute__((weak)) dfu_reset_prepare (void) {
@@ -500,8 +541,11 @@ void __attribute__((weak)) dfu_reset_prepare (void) {
 
 void dfu_reset() {
     int err_code = 0;
-                
-    // set flag for bootloader to enter dfu  
+    // TODO ifdef
+    // uninit rng
+    nrf_drv_rng_uninit();
+
+    // set flag for bootloader to enter dfu 
     err_code = sd_power_gpregret_clr(0xFF);
     APP_ERROR_CHECK(err_code);
     err_code = sd_power_gpregret_set(BOOTLOADER_DFU_START);
