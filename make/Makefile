@@ -112,7 +112,6 @@ JLINK_OPTIONS = -device $(NRF_IC) -if swd -speed 1000
 
 # If not set in app makefile, lets optimize for size
 CFLAGS ?= -Os
-CFLAGS += -fomit-frame-pointer
 
 # Add useful paths from nRF5x-base
 LIBRARY_PATHS += $(BASE_DIR)/advertisement/
@@ -120,6 +119,7 @@ LIBRARY_PATHS += $(BASE_DIR)/devices/
 LIBRARY_PATHS += $(BASE_DIR)/lib/
 LIBRARY_PATHS += $(BASE_DIR)/peripherals/
 LIBRARY_PATHS += $(BASE_DIR)/services/
+LIBRARY_PATHS += $(BASE_DIR)/crypto/
 
 SOURCE_PATHS += $(BASE_DIR)/advertisement/
 SOURCE_PATHS += $(BASE_DIR)/devices/
@@ -127,6 +127,7 @@ SOURCE_PATHS += $(BASE_DIR)/lib/
 SOURCE_PATHS += $(BASE_DIR)/peripherals/
 SOURCE_PATHS += $(BASE_DIR)/services/
 SOURCE_PATHS += $(BASE_DIR)/startup/
+SOURCE_PATHS += $(BASE_DIR)/crypto/
 
 
 # Add paths for each SDK version
@@ -219,8 +220,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU
-    APPLICATION_SRCS += bootloader_util.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -340,8 +341,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU
-    APPLICATION_SRCS += bootloader_util.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -427,8 +428,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU
-    APPLICATION_SRCS += bootloader_util.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -491,7 +492,7 @@ VPATH = $(SOURCE_PATHS)
 OUTPUT_PATH ?= _build/
 
 CPUFLAGS = -mthumb -mcpu=cortex-m0 -march=armv6-m
-CFLAGS += -std=gnu99 -c $(CPUFLAGS) -Wall -D$(DEVICE) -D$(BOARD) -DSDK_VERSION_$(SDK_VERSION) -DSOFTDEVICE_$(SOFTDEVICE_MODEL)
+CFLAGS += -fomit-frame-pointer -std=gnu99 -c $(CPUFLAGS) -Wall -D$(DEVICE) -D$(BOARD) -DSDK_VERSION_$(SDK_VERSION) -DSOFTDEVICE_$(SOFTDEVICE_MODEL)
 CFLAGS += -s -ffunction-sections -fdata-sections
 CFLAGS += -D$(shell echo $(SOFTDEVICE_MODEL) | tr a-z A-Z)
 CFLAGS += $(CMSIS_INCLUDE) $(LIBRARY_INCLUDES) -MD
