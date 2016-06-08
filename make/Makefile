@@ -107,11 +107,14 @@ SYSTEM_FILE ?= system_$(NRF_MODEL).c
 # Set the path to the softdevice
 SOFTDEVICE ?= $(BASE_DIR)/softdevice/$(SOFTDEVICE_MODEL)_$(NRF_MODEL)_$(SOFTDEVICE_VERSION)_softdevice.hex
 
+BOOTLOADER_REGION_START = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-18)*1024" | bc ))
+BOOTLOADER_SETTINGS_ADDRESS = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-2)*1024" | bc))
+
 # Need some common options for interacting with the chip over JTAG
 JLINK_OPTIONS = -device $(NRF_IC) -if swd -speed 1000
 
 # If not set in app makefile, lets optimize for size
-CFLAGS ?= -Os
+CFLAGS += -Os
 
 # Add useful paths from nRF5x-base
 LIBRARY_PATHS += $(BASE_DIR)/advertisement/
@@ -208,11 +211,16 @@ endif
 endif
 
 ifdef USE_BLE
+    # How many central/peripherals are defined changes how much memory the
+    # softdevice requires. Change the amount of memory allotted in a custom ld
+    # file if your configuration is different than default.
+    CENTRAL_LINK_COUNT ?= 1
+    PERIPHERAL_LINK_COUNT ?= 1
     LIBRARY_PATHS += $(wildcard $(SDK_INCLUDE_PATH)ble/*/)
     LIBRARY_PATHS += $(wildcard $(SDK_INCLUDE_PATH)ble/ble_services/*/)
     SOURCE_PATHS += $(wildcard $(SDK_SOURCE_PATH)ble/*/)
     SOURCE_PATHS += $(wildcard $(SDK_SOURCE_PATH)ble/ble_services/*/)
-    CFLAGS += -DBLE_STACK_SUPPORT_REQD -DSOFTDEVICE_PRESENT
+    CFLAGS += -DBLE_STACK_SUPPORT_REQD -DSOFTDEVICE_PRESENT -DCENTRAL_LINK_COUNT=$(CENTRAL_LINK_COUNT) -DPERIPHERAL_LINK_COUNT=$(CENTRAL_LINK_COUNT)
 endif
 
 ifdef USE_ANT
@@ -341,8 +349,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
-    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
+    CFLAGS += -DENABLE_DFU
+    APPLICATION_SRCS += bootloader_util.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -482,7 +490,7 @@ print-% : ; @echo $* = $($*)
 
 LINKER_SCRIPT ?= $(BASE_DIR)/make/ld/gcc_$(NRF_MODEL)_$(SOFTDEVICE_MODEL)_$(SOFTDEVICE_VERSION)_$(RAM_KB)_$(FLASH_KB).ld
 OUTPUT_NAME ?= $(addsuffix _$(SOFTDEVICE_MODEL), $(PROJECT_NAME))
-DFU_OUTPUT_NAME ?= $(addsuffix _$(SOFTDEVICE_MODEL), dfu)
+DFU_OUTPUT_NAME ?= $(addsuffix _$(FLASH_KB), $(addsuffix _$(RAM_KB), $(addsuffix _$(SOFTDEVICE_MODEL), dfu)))
 
 LIBRARY_INCLUDES = $(addprefix -I,$(LIBRARY_PATHS))
 CMSIS_INCLUDE = $(addprefix -I,$(CMSIS_INCLUDE_PATH))
@@ -498,9 +506,9 @@ CFLAGS += -D$(shell echo $(SOFTDEVICE_MODEL) | tr a-z A-Z)
 CFLAGS += $(CMSIS_INCLUDE) $(LIBRARY_INCLUDES) -MD
 LDFLAGS += $(CPUFLAGS) -L $(BASE_DIR)/make/ld -T $(LINKER_SCRIPT) -Wl,--gc-sections -Wl,-Map=$(OUTPUT_PATH)$(OUTPUT_NAME).Map
 
-DFUHEX = $(OUTPUT_PATH)dfu/$(DFU_OUTPUT_NAME).hex
-DFUELF = $(OUTPUT_PATH)dfu/$(DFU_OUTPUT_NAME).elf
-DFUBIN = $(OUTPUT_PATH)dfu/$(DFU_OUTPUT_NAME).bin
+DFUHEX = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).hex
+DFUELF = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).elf
+DFUBIN = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).bin
 
 HEX = $(OUTPUT_PATH)$(OUTPUT_NAME).hex
 ELF = $(OUTPUT_PATH)$(OUTPUT_NAME).elf

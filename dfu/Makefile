@@ -34,9 +34,19 @@ LIBRARY_PATHS += .
 
 SOURCE_PATHS += ../src
 
-SDK_VERSION ?= 10
-SOFTDEVICE_MODEL ?= s110
-LINKER_SCRIPT = ../make/ld/gcc_nrf51_s110_8.0.0_32_256_bootloader.ld 
+SDK_VERSION ?= 11
+SOFTDEVICE_MODEL ?= s130
+RAM_KB ?= 32
+FLASH_KB ?= 256
+
+LINKER_SCRIPT = ../make/ld/gcc_nrf51_s130_2.0.0_32_256_bootloader.ld
+
+BOOTLOADER_REGION_START = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-18)*1024" | bc ))
+BOOTLOADER_SETTINGS_ADDRESS = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-2)*1024" | bc))
+CFLAGS += -DBOOTLOADER_REGION_START=$(BOOTLOADER_REGION_START)
+CFLAGS += -DBOOTLOADER_SETTINGS_ADDRESS=$(BOOTLOADER_SETTINGS_ADDRESS)
+
+LDFLAGS += --specs=nano.specs
 
 NRF_BASE_PATH ?= ..
 include $(NRF_BASE_PATH)/make/Makefile
