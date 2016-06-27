@@ -52,12 +52,30 @@ ID_FIRST = $(word 1,$(ID_BYTES))$(word 2,$(ID_BYTES))
 ID_SECON = $(word 3,$(ID_BYTES))$(word 4,$(ID_BYTES))$(word 5,$(ID_BYTES))$(word 6,$(ID_BYTES))
 endif
 
-flash.jlink:
+ifdef ENABLE_SECURE_DFU
+# Generate and write symmetric key to file if it does not exist already
+HMAC_KEY = $(shell cat $(HMAC_KEY_FILE))
+HMAC_KEY_FIRST = $(word 1,$(shell echo $(HMAC_KEY) | fold -w8))
+HMAC_KEY_SECON = $(word 2,$(shell echo $(HMAC_KEY) | fold -w8))
+
+hmac.key:
 	$(MAKE_BUILD_FOLDER)
+	$(shell if [ ! -e $(HMAC_KEY_FILE) ]; then cat /dev/urandom | xxd -l 8 -g 8 -ps > $(HMAC_KEY_FILE); fi;)
+
+flash.jlink: hmac.key
+
+else
+flash.jlink:
+endif #ENABLE_SECURE_DFU
+	$(MAKE_BUILD_FOLDER)
+	$(MAKE_HMAC_KEY)
 	printf "r\n" > $(OUTPUT_PATH)flash.jlink
 ifdef ENABLE_WIRELESS_DFU
 	printf "w4 $(BOOTLOADER_SETTINGS_ADDRESS), 0x01, 0x00\n" >> $(OUTPUT_PATH)flash.jlink
-endif
+ifdef ENABLE_SECURE_DFU
+	printf "w4 $(HMAC_KEY_LOCATION), 0x$(HMAC_KEY_SECON) 0x$(HMAC_KEY_FIRST)\n" >> $(OUTPUT_PATH)flash.jlink
+endif #ENABLE_SECURE_DFU
+endif #ENABLE_WIRELESS_DFU
 ifdef ID
 	printf "w4 $(BLEADDR_FLASH_LOCATION), 0x$(ID_SECON) 0x$(ID_FIRST)\n" >> $(OUTPUT_PATH)flash.jlink
 endif

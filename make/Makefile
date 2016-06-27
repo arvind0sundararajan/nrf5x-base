@@ -228,8 +228,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
-    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H -DLITTLE_ENDIAN=1234 -DBYTE_ORDER=LITTLE_ENDIAN
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c sha2.c hmac_sha256.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -349,8 +349,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU
-    APPLICATION_SRCS += bootloader_util.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H -DLITTLE_ENDIAN=1234 -DBYTE_ORDER=LITTLE_ENDIAN
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c sha2.c hmac_sha256.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -436,8 +436,8 @@ ifdef USE_ANT
 endif
 
 ifdef ENABLE_WIRELESS_DFU
-    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H
-    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c
+    CFLAGS += -DENABLE_DFU -DSHA2_USE_INTTYPES_H -DLITTLE_ENDIAN=1234 -DBYTE_ORDER=LITTLE_ENDIAN
+    APPLICATION_SRCS += bootloader_util.c nrf_drv_common.c nrf_drv_rng.c sha2.c hmac_sha256.c
 endif
 
 ifdef SOFTDEVICE_MODEL
@@ -463,10 +463,22 @@ ifeq ($(FLASH_KB), 256)
 	# 256 KB Flash
 	CFLAGS += -DBLEADDR_FLASH_LOCATION=0x0003FFF8
 	BLEADDR_FLASH_LOCATION ?= 0x0003FFF8
+ifdef ENABLE_WIRELESS_DFU
+ifdef ENABLE_SECURE_DFU
+	CFLAGS += -DHMAC_KEY_LOCATION=0x0003FFF0
+	HMAC_KEY_LOCATION ?= 0X0003FFF0
+endif
+endif
 else
 	# Assume 128 KB Flash
 	CFLAGS += -DBLEADDR_FLASH_LOCATION=0x0001FFF8
 	BLEADDR_FLASH_LOCATION ?= 0x0001FFF8
+ifdef ENABLE_WIRELESS_DFU 
+ifdef ENABLE_SECURE_DFU
+	CFLAGS += -DHMAC_KEY_LOCATION=0x0001FFF0
+	HMAC_KEY_LOCATION ?= 0X0001FFF0
+endif
+endif
 endif
 
 # Hardware and Firmware version numbers
@@ -509,6 +521,7 @@ LDFLAGS += $(CPUFLAGS) -L $(BASE_DIR)/make/ld -T $(LINKER_SCRIPT) -Wl,--gc-secti
 DFUHEX = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).hex
 DFUELF = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).elf
 DFUBIN = $(BASE_DIR)/dfu/_build/$(DFU_OUTPUT_NAME).bin
+HMAC_KEY_FILE = $(OUTPUT_PATH)hmac.key
 
 HEX = $(OUTPUT_PATH)$(OUTPUT_NAME).hex
 ELF = $(OUTPUT_PATH)$(OUTPUT_NAME).elf

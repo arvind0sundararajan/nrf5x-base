@@ -32,6 +32,7 @@
 #include "bootloader.h"
 #include "nrf_drv_rng.h"
 #include "app_fifo.h"
+#include "hmac_sha256.h"
 #endif
 
 // Simple BLE files
@@ -49,7 +50,8 @@
 
 typedef enum {
   DFU_WAIT,
-  DFU_AUTH,
+  DFU_AUTH_1,
+  DFU_AUTH_2,
   DFU_PEND
 } dfu_state_t;
 
@@ -85,7 +87,10 @@ static simple_ble_service_t dfu_service = {
 static simple_ble_char_t    dfu_ctrlpt_char = {.uuid16 = BLE_DFU_CTRL_PT_UUID};
 
 static dfu_state_t dfu_state = DFU_WAIT;
+
+static uint8_t ctrlpt_data[20];
 static uint8_t session_id[DFU_SESSION_ID_SIZE];
+static uint8_t hmac[SHA256_DIGEST_LENGTH];
 #endif
 
 /*******************************************************************************
@@ -186,6 +191,7 @@ static void interrupts_disable(void) {
 
 static void on_ble_evt(ble_evt_t * p_ble_evt) {
     uint32_t err_code;
+    uint8_t digest[32];
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GAP_EVT_CONNECTED:
@@ -229,28 +235,37 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
             if (simple_ble_is_char_event(p_ble_evt, &dfu_ctrlpt_char)) {
                 switch (dfu_state) {
                     case DFU_WAIT:
-                        if (1) { // if not in backoff
-                            uint8_t* data = p_ble_evt->evt.gatts_evt.params.write.data;
-                            int len = p_ble_evt->evt.gatts_evt.params.write.len;
-                            if (len == 2 && *data == 0x01) {
-                                //TODO ifdef
-                                nrf_drv_rng_block_rand(session_id, DFU_SESSION_ID_SIZE);
-                                simple_ble_notify_char (&dfu_ctrlpt_char);
-                                dfu_state = DFU_AUTH;
+                        // TODO backoff
+                        if (ctrlpt_data[0] == 0x01) {
+                            //TODO ifdef
+                            ctrlpt_data[0] = 0x10;
+                            ctrlpt_data[1] = 0x09;
+                            nrf_drv_rng_block_rand(session_id, DFU_SESSION_ID_SIZE);
+                            memcpy(ctrlpt_data+2, session_id, DFU_SESSION_ID_SIZE);
+                            simple_ble_notify_char (&dfu_ctrlpt_char);
+                            dfu_state = DFU_AUTH_1;
+                        }
+                        break;
+                    case DFU_AUTH_1:
+                        memcpy(hmac, ctrlpt_data, 20);
+                        dfu_state = DFU_AUTH_2;
+                        break;
+                    case DFU_AUTH_2: {
+                        memcpy(hmac+20, ctrlpt_data, SHA256_DIGEST_LENGTH-20);
+                        if (HMAC_SHA256_compute(session_id, DFU_SESSION_ID_SIZE, (uint8_t *) HMAC_KEY_LOCATION, 8, digest)) { //hmac completes
+                            if (memcmp(hmac, digest, SHA256_DIGEST_LENGTH) == 0) { // hmac validates
+                                // disconnect, wait for event. 
+                                err_code = sd_ble_gap_disconnect(app.conn_handle, 
+                                    BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
+                                APP_ERROR_CHECK(err_code);
+                                dfu_state = DFU_PEND;
+                                break;
                             }
                         }
+                        // TODO backoff
+                        dfu_state = DFU_WAIT;
                         break;
-                    case DFU_AUTH:
-                        if (0) { //hmac validates
-                            // disconnect, wait for event. 
-                            err_code = sd_ble_gap_disconnect(app.conn_handle, 
-                                BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
-                            APP_ERROR_CHECK(err_code);
-                            dfu_state = DFU_PEND;
-                        } else if (1) { //backoff
-                          dfu_state = DFU_WAIT;
-                        }
-                        break;
+                    }
                     default:
                         // give up and restart process
                         dfu_state = DFU_WAIT;
@@ -520,11 +535,11 @@ void __attribute__((weak)) services_init (void) {
 #ifdef ENABLE_DFU
 void __attribute__((weak)) dfu_init (void) {
     int err_code = 0;
-
+    
     simple_ble_add_service(&dfu_service);
     // Add ctrl pt characteristic
     simple_ble_add_characteristic(0,1,1,0,
-        DFU_SESSION_ID_SIZE, session_id,
+        20, ctrlpt_data,
         &dfu_service,&dfu_ctrlpt_char);
     
     // TODO ifdef
