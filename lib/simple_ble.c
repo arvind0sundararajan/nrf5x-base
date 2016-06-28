@@ -252,8 +252,13 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
                         break;
                     case DFU_AUTH_2: {
                         memcpy(hmac+20, ctrlpt_data, SHA256_DIGEST_LENGTH-20);
+                        ctrlpt_data[0] = 0x10;
+                        ctrlpt_data[1] = 0x0A;
                         if (HMAC_SHA256_compute(session_id, DFU_SESSION_ID_SIZE, (uint8_t *) HMAC_KEY_LOCATION, 8, digest)) { //hmac completes
                             if (memcmp(hmac, digest, SHA256_DIGEST_LENGTH) == 0) { // hmac validates
+                                // notify updater of success
+                                ctrlpt_data[2] = 0x01;
+                                simple_ble_notify_char (&dfu_ctrlpt_char);
                                 // disconnect, wait for event. 
                                 err_code = sd_ble_gap_disconnect(app.conn_handle, 
                                     BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
@@ -261,6 +266,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
                                 dfu_state = DFU_PEND;
                                 break;
                             }
+                            
+                            ctrlpt_data[2] = 0x00;
+                            simple_ble_notify_char (&dfu_ctrlpt_char);
+                            dfu_state = DFU_WAIT;
+                            break;
                         }
                         // TODO backoff
                         dfu_state = DFU_WAIT;
