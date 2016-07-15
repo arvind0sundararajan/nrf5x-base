@@ -233,6 +233,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
 #ifdef ENABLE_DFU
             // if written to dfu ctrl pt
             if (simple_ble_is_char_event(p_ble_evt, &dfu_ctrlpt_char)) {
+#ifdef ENABLE_SECURE_DFU
                 switch (dfu_state) {
                     case DFU_WAIT:
                         // TODO backoff
@@ -281,8 +282,13 @@ static void on_ble_evt(ble_evt_t * p_ble_evt) {
                         dfu_state = DFU_WAIT;
                         break;
                 }
+#endif //ENABLE_SECURE_DFU
+                err_code = sd_ble_gap_disconnect(app.conn_handle, 
+                    BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION); 
+                APP_ERROR_CHECK(err_code);
+                dfu_state = DFU_PEND;
             }
-#endif            
+#endif //ENABLE_DFU
             // callback for user. Weak reference, so check validity first
             if (ble_evt_write) {
                 ble_evt_write(p_ble_evt);
