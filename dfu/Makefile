@@ -1,6 +1,8 @@
 PROJECT_NAME = $(shell basename "$(realpath ./)")
 
-APPLICATION_SRCS = $(notdir $(wildcard ./*.c))
+#APPLICATION_SRCS = $(notdir $(wildcard ./*.c))
+
+APPLICATION_SRCS += main.c
 APPLICATION_SRCS += bootloader.c
 APPLICATION_SRCS += bootloader_util.c
 APPLICATION_SRCS += bootloader_settings.c
@@ -8,7 +10,6 @@ APPLICATION_SRCS += crc16.c
 APPLICATION_SRCS += dfu_single_bank.c
 APPLICATION_SRCS += dfu_transport_ble.c
 APPLICATION_SRCS += ble_dfu.c
-APPLICATION_SRCS += dfu_init_template.c
 APPLICATION_SRCS += hci_transport.c
 APPLICATION_SRCS += hci_slip.c
 APPLICATION_SRCS += hci_mem_pool.c
@@ -28,6 +29,13 @@ APPLICATION_SRCS += nrf_drv_common.c
 APPLICATION_SRCS += nrf_delay.c
 APPLICATION_SRCS += led.c
 APPLICATION_SRCS += nrf_drv_uart.c 
+ifdef ENABLE_SECURE_DFU
+APPLICATION_SRCS += sha2.c
+APPLICATION_SRCS += hmac_sha256.c
+APPLICATION_SRCS += dfu_init_hmac_sha256.c
+else
+APPLICATION_SRCS += dfu_init_template.c
+endif
 
 LIBRARY_PATHS += ../include
 LIBRARY_PATHS += .
@@ -41,10 +49,15 @@ FLASH_KB ?= 256
 
 LINKER_SCRIPT = ../make/ld/gcc_nrf51_s130_2.0.0_32_256_bootloader.ld
 
-BOOTLOADER_REGION_START = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-18)*1024" | bc ))
-BOOTLOADER_SETTINGS_ADDRESS = $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-2)*1024" | bc))
+BOOTLOADER_REGION_START ?= $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-18)*1024" | bc ))
+BOOTLOADER_SETTINGS_ADDRESS ?= $(addprefix 0x, $(shell echo "obase=16; (${FLASH_KB}-2)*1024" | bc))
 CFLAGS += -DBOOTLOADER_REGION_START=$(BOOTLOADER_REGION_START)
 CFLAGS += -DBOOTLOADER_SETTINGS_ADDRESS=$(BOOTLOADER_SETTINGS_ADDRESS)
+
+ifdef ENABLE_SECURE_DFU
+HMAC_KEY_LOCATION ?= 0x3FFF0
+CFLAGS += -DHMAC_KEY_LOCATION=$(HMAC_KEY_LOCATION) -DSHA2_USE_INTTYPES_H -DLITTLE_ENDIAN=1234 -DBYTE_ORDER=LITTLE_ENDIAN
+endif
 
 LDFLAGS += --specs=nano.specs
 
