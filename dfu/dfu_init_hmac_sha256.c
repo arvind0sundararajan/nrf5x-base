@@ -91,10 +91,12 @@ uint32_t dfu_init_prevalidate(uint8_t * p_init_data, uint32_t init_data_len)
     if (!HMAC_SHA256_compute(p_init_data, init_data_len, (uint8_t *) HMAC_KEY_LOCATION, 8, init_digest)) {
         return NRF_ERROR_INVALID_LENGTH;
     }
-
+    
     // Check digest vs first signature in extended init packet.
-    if (memcmp(m_extended_packet, init_digest, SHA256_DIGEST_LENGTH)) {
-        return NRF_ERROR_INVALID_LENGTH;
+    for(int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+      if (init_digest[i] != m_extended_packet[i]) {
+          return NRF_ERROR_INVALID_LENGTH;
+      }
     }
 
 /** [DFU init application version] */
