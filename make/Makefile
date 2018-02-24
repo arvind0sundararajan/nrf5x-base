@@ -289,6 +289,25 @@ SOURCE_PATHS += $(BASE_DIR)/peripherals/
 SOURCE_PATHS += $(BASE_DIR)/services/
 SOURCE_PATHS += $(BASE_DIR)/startup/
 
+# Openthread library files
+OPENTHREAD_DIR = $(BASE_DIR)/lib/openthread/
+THREAD_MAKE = $(OPENTHREAD_DIR)/examples/platforms/nrf52840/Makefile.in
+THREAD_LIB_FILES = libmbedcrypto.a \
+                   libopenthread-cli-mtd.a \
+	           libopenthread-ftd.a \
+	           libopenthread-ncp-ftd.a \
+	           libopenthread-nrf52840.a \
+	           libopenthread-nrf52840-softdevice-sdk.a \
+	           libopenthread-cli-ftd.a \
+	           libopenthread-diag.a \
+	           libopenthread-mtd.a  \
+	           libopenthread-ncp-mtd.a \
+	           libopenthread-nrf52840-sdk.a \
+	           libopenthread-platform-utils.a \
+	           $(NULL)
+OPENTHREAD_INCLUDE_DIR = $(OUTPUT_PATH)nrf52840/lib/
+THREAD_LIBS = $(addprefix $(OPENTHREAD_INCLUDE_DIR), $(THREAD_LIB_FILES))
+
 # Add paths for each SDK version
 ifeq ($(NRF_MODEL), nrf51)
 ifeq ($(SDK_VERSION), 12)
@@ -863,6 +882,12 @@ ifeq ($(SERIALIZATION_MODE), application)
 endif
 endif
 
+ifdef USE_THREAD
+    LIBRARY_PATHS += $(OUTPUT_PATH)/include/openthread/
+    LIBS += $(THREAD_LIBS)
+endif #USE_THREAD
+
+
 ifdef USE_BLE
     # How many central/peripherals are defined changes how much memory the
     # softdevice requires. Change the amount of memory allotted in a custom ld
@@ -1193,10 +1218,10 @@ else
   Q=@
 endif
 
-ifdef ENABLE_WIRELESS_DFU
+ifeq ($(ENABLE_WIRELESS_DFU), 1)
 all: $(OBJS) $(OBJS_AS) $(HEX) bootloader
 else
-all: $(OBJS) $(OBJS_AS) $(HEX)
+all: $(LIBS) $(OBJS) $(OBJS_AS) $(HEX)
 endif
 
 debug: CFLAGS += -g
@@ -1239,6 +1264,16 @@ $(OUTPUT_PATH)%.os: %.s
 	@$(MAKE_BUILD_FOLDER)
 	$(PRINT_AS)
 	$(Q)$(AS) $< -o $@
+
+$(THREAD_MAKE):
+	cd $(OPENTHREAD_DIR); \
+	./bootstrap;
+
+$(THREAD_LIBS): $(THREAD_MAKE)
+	@$(MAKE_BUILD_FOLDER)
+	make -f $(OPENTHREAD_DIR)/examples/Makefile-nrf52840 BuildPath=_build ResultPath=_build;
+
+thread: $(THREAD_LIBS)
 
 -include $(DEPS)
 
