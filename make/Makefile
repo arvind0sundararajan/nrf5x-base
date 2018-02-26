@@ -290,24 +290,21 @@ SOURCE_PATHS += $(BASE_DIR)/services/
 SOURCE_PATHS += $(BASE_DIR)/startup/
 
 # Openthread library files
-OPENTHREAD_DIR = $(BASE_DIR)/lib/openthread/
-THREAD_MAKE = $(OPENTHREAD_DIR)/examples/platforms/nrf52840/Makefile.in
-THREAD_LIB_FILES = libopenthread-cli-mtd.a \
-	           libopenthread-ftd.a \
-	           libopenthread-ncp-ftd.a \
-	           libopenthread-nrf52840.a \
-	           libopenthread-nrf52840-softdevice-sdk.a \
-	           libopenthread-cli-ftd.a \
-	           libopenthread-diag.a \
-	           libopenthread-mtd.a  \
-	           libopenthread-ncp-mtd.a \
-	           libopenthread-nrf52840-sdk.a \
-	           libopenthread-platform-utils.a \
-	           $(NULL)
+THREAD_LIB_FILES = libopenthread-cli-ftd.a \
+		   libopenthread-ftd.a \
+		   libopenthread-nrf52840-softdevice-sdk.a \
+		   libopenthread-diag.a \
+	           libmbedcrypto-cc310.a \
+		   $(NULL)
 		   #libmbedcrypto.a
-OPENTHREAD_INCLUDE_DIRS = $(BASE_DIR)/lib/openthread/include/ $(BASE_DIR)/lib/openthread/
-OPENTHREAD_LIB_DIR = $(OUTPUT_PATH)nrf52840/lib/
-THREAD_LIBS = $(addprefix $(OPENTHREAD_LIB_DIR), $(THREAD_LIB_FILES))
+		   #libopenthread-cli-mtd.a
+		   #libopenthread-mtd.a
+		   #libopenthread-ncp-ftd.a
+		   #libopenthread-ncp-mtd.a
+		   #libopenthread-platform-utils.a
+		   #libopenthread-nrf52840-sdk.a
+		   #libopenthread-nrf52840-sdk-usb.a
+		   #libopenthread-nrf52840-softdevice-sdk-usb.a
 
 # Add paths for each SDK version
 ifeq ($(NRF_MODEL), nrf51)
@@ -806,8 +803,9 @@ ifeq ($(SDK_VERSION), 14)
 
 	# Set the path
 	SDK_PATH ?= $(BASE_DIR)/sdk/nrf5_sdk_14.1.0/
-	THREAD_SDK_PATH = $(BASE_DIR)/sdk/nrf5_sdk_for_thread_0.11.0/
-
+ifeq ($(USE_THREAD), 1)
+	SDK_PATH = $(BASE_DIR)/sdk/nrf5_sdk_for_thread_0.11.0/
+endif
 	# Other knowns about the SDK paths
 	SDK_INCLUDE_PATH   = $(SDK_PATH)components/
 	SDK_SOURCE_PATH    = $(SDK_PATH)components/
@@ -884,25 +882,41 @@ ifeq ($(SERIALIZATION_MODE), application)
 endif
 endif
 
-ifdef USE_THREAD
-    LIBRARY_PATHS += $(OPENTHREAD_INCLUDE_DIRS)
+ifeq ($(USE_THREAD), 1)
+    USE_BLE = 0
+    LIBRARY_PATHS += $(SDK_PATH)external/openthread/include/
     # Add openthread and specific nordic cc310 crypto cell libraries:
-    LIBS += $(THREAD_LIBS) \
-            $(THREAD_SDK_PATH)external/openthread/lib/gcc/libmbedcrypto-cc310.a \
-	    $(THREAD_SDK_PATH)external/nrf_cc310/lib/libcc310_gcc_0.9.0.a \
+    THREAD_LIBS = $(addprefix $(SDK_PATH)external/openthread/lib/gcc/, $(THREAD_LIB_FILES))
+    THREAD_LIBS += $(SDK_PATH)external/nrf_cc310/lib/libcc310_gcc_0.9.0.a
+    LIBS += $(THREAD_LIBS)
 
     # Add nordic thread components
-    LIBRARY_PATHS += $(THREAD_SDK_PATH)components/thread/experimental/utils/
-    SOURCE_PATHS += $(THREAD_SDK_PATH)components/thread/experimental/utils/
+    LIBRARY_PATHS += $(SDK_INCLUDE_PATH)/thread/experimental/utils/
+    SOURCE_PATHS +=  $(SDK_INCLUDE_PATH)/thread/experimental/utils/
     # Add nordic mbedtls cc310 library
-    LIBRARY_PATHS += $(THREAD_SDK_PATH)/external/nrf_cc310/include/
-    # Add experimental log
-    #LIBRARY_PATHS += $(SDK_INCLUDE_PATH)libraries/experimental_log/src
-    #SOURCE_PATHS += $(SDK_SOURCE_PATH)libraries/experimental_log/src
+    LIBRARY_PATHS += $(SDK_PATH)external/nrf_cc310/include/
+    # Add SEGGER includes/source
+    LIBRARY_PATHS += $(SDK_PATH)external/segger_rtt/
+    SOURCE_PATHS  += $(SDK_PATH)external/segger_rtt/
+
+    # Add required sources
+    APPLICATION_SRCS += nrf_log_frontend.c
+    APPLICATION_SRCS += nrf_memobj.c
+    APPLICATION_SRCS += nrf_balloc.c
+    APPLICATION_SRCS += app_util_platform.c
+    APPLICATION_SRCS += nrf_nvmc.c
+    APPLICATION_SRCS += nrf_soc.c
+    APPLICATION_SRCS += SEGGER_RTT.c
+    APPLICATION_SRCS += SEGGER_RTT_Syscalls_GCC.c
+    APPLICATION_SRCS += SEGGER_RTT_printf.c
+
+    # Use openthread specific linker script
+    TEMPLATE_PATH = $(SDK_PATH)components/toolchain/gcc/
+    LINKER_SCRIPT = $(SDK_PATH)external/openthread/linker_scripts/openthread_nrf52840_multiprotocol.ld
 endif #USE_THREAD
 
 
-ifdef USE_BLE
+ifeq ($(USE_BLE), 1)
     # How many central/peripherals are defined changes how much memory the
     # softdevice requires. Change the amount of memory allotted in a custom ld
     # file if your configuration is different than default.
@@ -1168,6 +1182,7 @@ endif
 # Needed for SDK12
 NRF_IC_UPPER = $(shell echo $(NRF_IC) | tr a-z A-Z)
 
+TEMPLATE_PATH ?= $(BASE_DIR)/make/ld
 LINKER_SCRIPT ?= gcc_$(NRF_MODEL)_$(SOFTDEVICE_MODEL)_$(SOFTDEVICE_VERSION)_$(RAM_KB)_$(FLASH_KB).ld
 
 OUTPUT_NAME ?= $(addsuffix _$(SOFTDEVICE_MODEL), $(PROJECT_NAME))
@@ -1190,7 +1205,7 @@ CFLAGS += -std=gnu99 -c $(CPUFLAGS) -Wall -Wextra -Wno-unused-parameter -Werror=
 CFLAGS += -s -ffunction-sections -fdata-sections
 CFLAGS += -D$(shell echo $(SOFTDEVICE_MODEL) | tr a-z A-Z)
 CFLAGS += $(CMSIS_INCLUDE) $(LIBRARY_INCLUDES) -MD
-LDFLAGS += $(CPUFLAGS) -L $(BASE_DIR)/make/ld -T $(LINKER_SCRIPT) -Wl,--gc-sections -Wl,-Map=$(OUTPUT_PATH)$(OUTPUT_NAME).Map
+LDFLAGS += $(CPUFLAGS) -L $(TEMPLATE_PATH) -T $(LINKER_SCRIPT) -Wl,--gc-sections -Wl,-Map=$(OUTPUT_PATH)$(OUTPUT_NAME).Map
 OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
 
@@ -1241,8 +1256,12 @@ endif
 debug: CFLAGS += -g
 ifdef ENABLE_WIRELESS_DFU
 debug: $(OBJS) $(OBJS_AS) $(HEX) bootloader
+	$(PRINT_LST)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $(ELF) > $(LST)
 else
 debug: $(OBJS) $(OBJS_AS) $(HEX)
+	$(PRINT_LST)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $(ELF) > $(LST)
 endif
 
 rebuild: clean all
@@ -1261,8 +1280,6 @@ $(HEX): $(OBJS) $(OBJS_AS)
 	$(Q)$(OBJCOPY) -Oihex $(ELF) $(HEX)
 	$(PRINT_BIN)
 	$(Q)$(OBJCOPY) -Obinary $(ELF) $(BIN)
-	$(PRINT_LST)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $(ELF) > $(LST)
 	$(PRINT_SIZ)
 	$(Q)$(SIZE) $(ELF)
 
@@ -1279,15 +1296,15 @@ $(OUTPUT_PATH)%.os: %.s
 	$(PRINT_AS)
 	$(Q)$(AS) $< -o $@
 
-$(THREAD_MAKE):
-	cd $(OPENTHREAD_DIR); \
-	./bootstrap;
+#$(THREAD_MAKE):
+#	cd $(OPENTHREAD_DIR); \
+#	./bootstrap;
 
-$(THREAD_LIBS): $(THREAD_MAKE)
-	@$(MAKE_BUILD_FOLDER)
-	make -f $(OPENTHREAD_DIR)/examples/Makefile-nrf52840 BuildPath=_build ResultPath=_build;
+#$(THREAD_LIBS): $(THREAD_MAKE)
+#	@$(MAKE_BUILD_FOLDER)
+#	make -f $(OPENTHREAD_DIR)/examples/Makefile-nrf52840 BuildPath=_build ResultPath=_build;
 
-thread: $(THREAD_LIBS)
+#thread: $(THREAD_LIBS)
 
 -include $(DEPS)
 
