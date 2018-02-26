@@ -292,8 +292,7 @@ SOURCE_PATHS += $(BASE_DIR)/startup/
 # Openthread library files
 OPENTHREAD_DIR = $(BASE_DIR)/lib/openthread/
 THREAD_MAKE = $(OPENTHREAD_DIR)/examples/platforms/nrf52840/Makefile.in
-THREAD_LIB_FILES = libmbedcrypto.a \
-                   libopenthread-cli-mtd.a \
+THREAD_LIB_FILES = libopenthread-cli-mtd.a \
 	           libopenthread-ftd.a \
 	           libopenthread-ncp-ftd.a \
 	           libopenthread-nrf52840.a \
@@ -305,8 +304,10 @@ THREAD_LIB_FILES = libmbedcrypto.a \
 	           libopenthread-nrf52840-sdk.a \
 	           libopenthread-platform-utils.a \
 	           $(NULL)
-OPENTHREAD_INCLUDE_DIR = $(OUTPUT_PATH)nrf52840/lib/
-THREAD_LIBS = $(addprefix $(OPENTHREAD_INCLUDE_DIR), $(THREAD_LIB_FILES))
+		   #libmbedcrypto.a
+OPENTHREAD_INCLUDE_DIRS = $(BASE_DIR)/lib/openthread/include/ $(BASE_DIR)/lib/openthread/
+OPENTHREAD_LIB_DIR = $(OUTPUT_PATH)nrf52840/lib/
+THREAD_LIBS = $(addprefix $(OPENTHREAD_LIB_DIR), $(THREAD_LIB_FILES))
 
 # Add paths for each SDK version
 ifeq ($(NRF_MODEL), nrf51)
@@ -805,6 +806,7 @@ ifeq ($(SDK_VERSION), 14)
 
 	# Set the path
 	SDK_PATH ?= $(BASE_DIR)/sdk/nrf5_sdk_14.1.0/
+	THREAD_SDK_PATH = $(BASE_DIR)/sdk/nrf5_sdk_for_thread_0.11.0/
 
 	# Other knowns about the SDK paths
 	SDK_INCLUDE_PATH   = $(SDK_PATH)components/
@@ -883,8 +885,20 @@ endif
 endif
 
 ifdef USE_THREAD
-    LIBRARY_PATHS += $(OUTPUT_PATH)/include/openthread/
-    LIBS += $(THREAD_LIBS)
+    LIBRARY_PATHS += $(OPENTHREAD_INCLUDE_DIRS)
+    # Add openthread and specific nordic cc310 crypto cell libraries:
+    LIBS += $(THREAD_LIBS) \
+            $(THREAD_SDK_PATH)external/openthread/lib/gcc/libmbedcrypto-cc310.a \
+	    $(THREAD_SDK_PATH)external/nrf_cc310/lib/libcc310_gcc_0.9.0.a \
+
+    # Add nordic thread components
+    LIBRARY_PATHS += $(THREAD_SDK_PATH)components/thread/experimental/utils/
+    SOURCE_PATHS += $(THREAD_SDK_PATH)components/thread/experimental/utils/
+    # Add nordic mbedtls cc310 library
+    LIBRARY_PATHS += $(THREAD_SDK_PATH)/external/nrf_cc310/include/
+    # Add experimental log
+    #LIBRARY_PATHS += $(SDK_INCLUDE_PATH)libraries/experimental_log/src
+    #SOURCE_PATHS += $(SDK_SOURCE_PATH)libraries/experimental_log/src
 endif #USE_THREAD
 
 
