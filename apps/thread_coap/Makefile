@@ -10,6 +10,11 @@ APPLICATION_SRCS += nrf_drv_common.c
 APPLICATION_SRCS += nrf_drv_clock.c
 APPLICATION_SRCS += led.c
 APPLICATION_SRCS += thread_utils.c
+APPLICATION_SRCS += nrf_log_backend_serial.c
+APPLICATION_SRCS += SEGGER_RTT.c
+APPLICATION_SRCS += SEGGER_RTT_Syscalls_GCC.c
+APPLICATION_SRCS += SEGGER_RTT_printf.c
+APPLICATION_SRCS += nrf_log_backend_rtt.c
 
 NRF_MODEL = nrf52840
 

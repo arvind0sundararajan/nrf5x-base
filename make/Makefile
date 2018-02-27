@@ -892,7 +892,9 @@ ifeq ($(USE_THREAD), 1)
 
     # Add nordic thread components
     LIBRARY_PATHS += $(SDK_INCLUDE_PATH)/thread/experimental/utils/
+    LIBRARY_PATHS += $(SDK_PATH)external/fprintf/
     SOURCE_PATHS +=  $(SDK_INCLUDE_PATH)/thread/experimental/utils/
+    SOURCE_PATHS += $(SDK_PATH)external/fprintf/
     # Add nordic mbedtls cc310 library
     LIBRARY_PATHS += $(SDK_PATH)external/nrf_cc310/include/
     # Add SEGGER includes/source
@@ -906,9 +908,10 @@ ifeq ($(USE_THREAD), 1)
     APPLICATION_SRCS += app_util_platform.c
     APPLICATION_SRCS += nrf_nvmc.c
     APPLICATION_SRCS += nrf_soc.c
-    APPLICATION_SRCS += SEGGER_RTT.c
-    APPLICATION_SRCS += SEGGER_RTT_Syscalls_GCC.c
-    APPLICATION_SRCS += SEGGER_RTT_printf.c
+    APPLICATION_SRCS += nrf_log_default_backends.c
+    APPLICATION_SRCS += nrf_log_str_formatter.c
+    APPLICATION_SRCS += nrf_fprintf.c
+    APPLICATION_SRCS += nrf_fprintf_format.c
 
     # Use openthread specific linker script
     TEMPLATE_PATH = $(SDK_PATH)components/toolchain/gcc/
