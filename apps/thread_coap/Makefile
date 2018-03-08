@@ -11,8 +11,6 @@ APPLICATION_SRCS += nrf_sdh.c
 APPLICATION_SRCS += nrf_section_iter.c
 APPLICATION_SRCS += nrf_drv_clock.c
 APPLICATION_SRCS += led.c
-# Thread
-APPLICATION_SRCS += thread_utils.c
 
 NRF_MODEL = nrf52840
 
