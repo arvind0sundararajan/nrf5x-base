@@ -206,8 +206,10 @@ CFLAGS += -fomit-frame-pointer
 STDLIBS = -lc -lnosys -lm -lstdc++
 
 LIBRARY_PATHS += $(BASE_DIR)/lib/
+LIBRARY_PATHS += $(BASE_DIR)/lib/ntpclient/source/c
 
 SOURCE_PATHS  += $(BASE_DIR)/lib/
+SOURCE_PATHS  += $(BASE_DIR)/lib/ntpclient/source/c
 
 # Add paths for each SDK version
 ifeq ($(NRF_MODEL), nrf51)
