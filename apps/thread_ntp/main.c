@@ -50,7 +50,7 @@ static void log_init(void)
 }
 
 void ntp_recv_callback(struct ntp_client_t* ntp_client) {
-  NRF_LOG_INFO("time: %lu", ntp_client->packet.txTm_s);
+  NRF_LOG_INFO("time: %lu", ntp_client->tv.tv_sec);
 }
 
 void ntp_update_callback() {
