@@ -159,6 +159,12 @@ ifneq (,$(filter $(NRF_IC),nrf52832 nrf52840))
     SDK_HEADER_PATHS += $(SDK_ROOT)components/toolchain/cmsis/include/
     SDK_HEADER_PATHS += $(SDK_ROOT)components/softdevice/common/
     SDK_HEADER_PATHS += $(SDK_ROOT)external/cifra_AES128-EAX/
+    SDK_HEADER_PATHS += $(SDK_ROOT)external/freertos/config/
+    SDK_HEADER_PATHS += $(SDK_ROOT)external/freertos/portable/CMSIS/nrf52/
+    SDK_HEADER_PATHS += $(SDK_ROOT)external/freertos/portable/GCC/nrf52/
+    SDK_HEADER_PATHS += $(SDK_ROOT)external/freertos/source/
+    SDK_HEADER_PATHS += $(SDK_ROOT)external/freertos/source/include/
+
     SDK_HEADER_PATHS += $(SDK_ROOT)external/mbedtls/library/
     SDK_HEADER_PATHS += $(SDK_ROOT)external/nrf_tls/mbedtls/nrf_crypto/config/
 
